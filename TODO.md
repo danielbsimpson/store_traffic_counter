@@ -8,15 +8,16 @@ Progress tracker for the Store Traffic Counter pipeline. See [plan/feature-pipel
 
 ## Phase 1: Core Infrastructure & Video Input Handling
 
-- [ ] TASK-001 — Create project directory structure (src/, models/, data/, output/, tests/)
-- [ ] TASK-002 — Initialize virtual environment and requirements.txt (opencv-python, numpy)
-- [ ] TASK-003 — Create main.py entry point with argparse CLI interface
-- [ ] TASK-004 — Implement video_loader.py with VideoProcessor class (MP4, AVI, MOV)
-- [ ] TASK-005 — Add frame extraction with error handling for corrupted files
-- [ ] TASK-006 — Implement frame validation and logging
-- [ ] TASK-007 — Create config.py with constants and defaults
-- [ ] TASK-008 — Write unit tests in tests/test_video_loader.py
-- [ ] TASK-009 — Add debug logging with --verbose flag
+- [x] TASK-001 — Create project directory structure (src/, models/, data/, output/, tests/)
+- [x] TASK-002 — Initialize virtual environment and requirements.txt (opencv-python, numpy)
+- [x] TASK-003 — Create main.py entry point with argparse CLI interface
+- [x] TASK-004 — Implement video_loader.py with VideoProcessor class (MP4, AVI, MOV)
+- [x] TASK-005 — Add frame extraction with error handling for corrupted files
+- [x] TASK-006 — Implement frame validation and logging
+- [x] TASK-098 — Add image-sequence input support (MOT17 `%06d.jpg`, parse seqinfo.ini)
+- [x] TASK-007 — Create config.py with constants and defaults
+- [x] TASK-008 — Write unit tests in tests/test_video_loader.py
+- [x] TASK-009 — Add debug logging with --verbose flag
 
 ## Phase 2: Person Detection Module
 
@@ -66,6 +67,7 @@ Progress tracker for the Store Traffic Counter pipeline. See [plan/feature-pipel
 - [ ] TASK-044 — Implement --display toggle for headless processing
 - [ ] TASK-045 — Add option to save annotated output video
 - [ ] TASK-046 — Implement real-time window with ESC-key exit
+- [ ] TASK-099 — Add demo export: short annotated MP4 clip + animated GIF for web embedding
 - [ ] TASK-047 — Write tests in tests/test_visualizer.py
 
 ## Phase 6: Metrics Logging & Data Export
@@ -139,14 +141,14 @@ Progress tracker for the Store Traffic Counter pipeline. See [plan/feature-pipel
 
 | Phase | Completed | Total |
 |-------|-----------|-------|
-| 1. Core Infrastructure | 0 | 9 |
+| 1. Core Infrastructure | 10 | 10 |
 | 2. Person Detection | 0 | 9 |
 | 3. Multi-Object Tracking | 0 | 9 |
 | 4. Tripwire & Counting | 0 | 9 |
-| 5. Visualization | 0 | 11 |
+| 5. Visualization | 0 | 12 |
 | 6. Metrics Logging | 0 | 11 |
 | 7. Pipeline Integration | 0 | 10 |
 | 8. Docker | 0 | 10 |
 | 9. Testing & QA | 0 | 9 |
 | 10. Documentation | 1 | 10 |
-| **Total** | **1** | **97** |
+| **Total** | **11** | **99** |

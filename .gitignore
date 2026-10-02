@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Model weights
+models/*.pt
+models/*.weights
+models/*.onnx
+
+# Output artifacts
+output/
+
+# Dataset (large; downloaded separately)
+data/MOT17*/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

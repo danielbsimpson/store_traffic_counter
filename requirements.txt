@@ -1,0 +1,14 @@
+# Core computer vision & numerical
+opencv-python>=4.8
+numpy>=1.24
+
+# Progress bars
+tqdm>=4.65
+
+# Demo clip / GIF export (Phase 5)
+imageio>=2.31
+imageio-ffmpeg>=0.4
+
+# Testing
+pytest>=7.0
+pytest-cov>=4.1

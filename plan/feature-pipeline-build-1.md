@@ -338,10 +338,12 @@ This implementation plan outlines the complete development of the Store Traffic 
 - **ASSUMPTION-006**: Project owner (Daniel Simpson) is sole maintainer and PoC is for portfolio demonstration, not production deployment
 - **ASSUMPTION-007**: Python 3.12 availability on deployment environment
 - **ASSUMPTION-008**: No real-time streaming requirement; batch video processing acceptable for PoC phase
+- **ASSUMPTION-009**: MOT17 sequences are used under CC BY-NC-SA (non-commercial); demo clips/GIFs embedded on the portfolio site must credit MOTChallenge and remain non-commercial
 
 ## 8. Related Specifications / Further Reading
 
 - [Store Traffic Counter README](../../README.md) - Project overview and user-facing documentation
+- [MOT17 Benchmark](https://motchallenge.net/data/MOT17) - Demo dataset (pedestrian tracking sequences with ground truth)
 - [OpenCV Documentation](https://docs.opencv.org/) - Computer vision library reference
 - [Ultralytics YOLOv8 Docs](https://docs.ultralytics.com/) - YOLO model documentation
 - [Centroid Tracking Algorithm](https://www.pyimagesearch.com/2018/07/23/simple-object-tracking-with-opencv/) - Reference implementation
@@ -352,4 +354,4 @@ This implementation plan outlines the complete development of the Store Traffic 
 ---
 
 **Plan Status Summary:**
-This implementation plan defines a phased 10-stage development approach for the complete Store Traffic Counter pipeline. Phases 1-7 cover core functionality (input → processing → output), Phase 8 handles containerization, and Phases 9-10 address testing and documentation. Total estimated effort: 4-6 weeks for solo developer. All phases are designed for autonomous execution by AI agents or humans with clear, measurable completion criteria.
+This implementation plan defines a phased 10-stage development approach (99 total tasks) for the complete Store Traffic Counter pipeline. Phases 1-7 cover core functionality (input → processing → output), Phase 8 handles containerization, and Phases 9-10 address testing and documentation. Demo input uses MOT17 image sequences (MOT17-09, MOT17-04, MOT17-11), with an annotated MP4 clip and animated GIF exported for portfolio embedding. Total estimated effort: 4-6 weeks for solo developer. All phases are designed for autonomous execution by AI agents or humans with clear, measurable completion criteria.
