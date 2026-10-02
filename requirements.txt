@@ -2,12 +2,8 @@
 opencv-python>=4.8,<5
 numpy>=1.24,<2.3
 
-# Progress bars
-tqdm>=4.65
-
-# Demo clip / GIF export (Phase 5)
-imageio>=2.31
-imageio-ffmpeg>=0.4
+# Person detection (YOLO; pulls in torch automatically)
+ultralytics>=8.0
 
 # Testing
 pytest>=7.0

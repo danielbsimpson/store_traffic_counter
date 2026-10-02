@@ -57,18 +57,18 @@ Progress tracker for the Store Traffic Counter pipeline. See [plan/feature-pipel
 
 ## Phase 5: Real-time Visualization & Overlay
 
-- [ ] TASK-037 — Implement visualizer.py with VideoVisualizer class
-- [ ] TASK-038 — Draw bounding boxes with unique colors per tracking ID
-- [ ] TASK-039 — Overlay tracking ID at centroid (18px font)
-- [ ] TASK-040 — Draw tripwire line (red, 3px) with direction arrows
-- [ ] TASK-041 — Display live counter overlay "IN: {n} | OUT: {n}" (24px)
-- [ ] TASK-042 — Add confidence score display next to bounding box
-- [ ] TASK-043 — Include frame number and FPS counter
-- [ ] TASK-044 — Implement --display toggle for headless processing
-- [ ] TASK-045 — Add option to save annotated output video
-- [ ] TASK-046 — Implement real-time window with ESC-key exit
+- [x] TASK-037 — Implement visualizer.py with VideoVisualizer class
+- [x] TASK-038 — Draw bounding boxes with unique colors per tracking ID
+- [x] TASK-039 — Overlay tracking ID at centroid (18px font)
+- [~] TASK-040 — Draw tripwire line (red, 3px) — line rendering done; direction arrows deferred with Phase 4
+- [x] TASK-041 — Display live counter overlay "IN: {n} | OUT: {n}" (24px) — rendered when counts provided (Phase 4)
+- [x] TASK-042 — Add confidence score display next to bounding box
+- [x] TASK-043 — Include frame number and FPS counter
+- [x] TASK-044 — Implement --display toggle for headless processing
+- [x] TASK-045 — Add option to save annotated output video
+- [x] TASK-046 — Implement real-time window with ESC-key exit
 - [ ] TASK-099 — Add demo export: short annotated MP4 clip + animated GIF for web embedding
-- [ ] TASK-047 — Write tests in tests/test_visualizer.py
+- [x] TASK-047 — Write tests in tests/test_visualizer.py
 
 ## Phase 6: Metrics Logging & Data Export
 
@@ -145,10 +145,10 @@ Progress tracker for the Store Traffic Counter pipeline. See [plan/feature-pipel
 | 2. Person Detection | 9 | 9 |
 | 3. Multi-Object Tracking | 9 | 9 |
 | 4. Tripwire & Counting | 0 | 9 |
-| 5. Visualization | 0 | 12 |
+| 5. Visualization | 10 | 12 |
 | 6. Metrics Logging | 0 | 11 |
 | 7. Pipeline Integration | 0 | 10 |
 | 8. Docker | 0 | 10 |
 | 9. Testing & QA | 0 | 9 |
 | 10. Documentation | 1 | 10 |
-| **Total** | **29** | **99** |
+| **Total** | **39** | **99** |

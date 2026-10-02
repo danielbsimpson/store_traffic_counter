@@ -1,7 +1,8 @@
 """Store Traffic Counter - command-line entry point.
 
-Phase 1 scope: load an input source (video file or MOT17 image sequence),
-validate it, and report frame metadata. Detection, tracking, counting, and
+Loads an input source (video file or MOT17 image sequence), runs person
+detection and centroid tracking, and renders real-time overlays that can be
+displayed live and/or saved to an annotated video. Tripwire counting and data
 export are added in later phases.
 """
 
@@ -10,16 +11,21 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+import time
 from pathlib import Path
+
+import cv2
 
 from config import (
     DEFAULT_CONFIDENCE_THRESHOLD,
+    ESC_KEY,
     LOG_DATE_FORMAT,
     LOG_FORMAT,
     OUTPUT_DIR,
 )
 from detector import DetectorError, create_detector
 from tracker import CentroidTracker
+from visualizer import VideoVisualizer
 from video_loader import VideoLoadError, VideoProcessor
 
 logger = logging.getLogger("store_traffic_counter")
@@ -62,7 +68,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--display",
         action="store_true",
-        help="Show the real-time visualization window.",
+        help="Show the real-time visualization window (press ESC to quit).",
+    )
+    parser.add_argument(
+        "--save-video",
+        action="store_true",
+        help="Save an annotated output video to the output directory.",
+    )
+    parser.add_argument(
+        "--max-frames",
+        type=int,
+        default=0,
+        help="Process at most this many frames (0 = all). Useful for quick visual checks.",
     )
     parser.add_argument(
         "--verbose",
@@ -82,7 +99,7 @@ def configure_logging(verbose: bool) -> None:
 
 
 def run(args: argparse.Namespace) -> int:
-    """Execute the pipeline through person detection (Phases 1-2)."""
+    """Run detection, tracking, and real-time visualization."""
     if not 0.0 <= args.confidence <= 1.0:
         logger.error("Confidence must be between 0.0 and 1.0 (got %s).", args.confidence)
         return 2
@@ -102,6 +119,7 @@ def run(args: argparse.Namespace) -> int:
         return 1
 
     tracker = CentroidTracker()
+    visualizer = VideoVisualizer()
 
     try:
         with VideoProcessor(args.video) as processor:
@@ -116,27 +134,59 @@ def run(args: argparse.Namespace) -> int:
                 info.frame_count,
             )
 
+            writer = _create_writer(args, info, output_dir) if args.save_video else None
+            window = f"Store Traffic Counter - {info.name}"
+
             processed = 0
             total_detections = 0
             total_inference_ms = 0.0
             log_interval = max(1, info.frame_count // 20) if info.frame_count else 50
 
-            for frame_number, frame in processor.frames():
-                result = detector.detect(frame)
-                tracked = tracker.update(result.detections, frame_number)
-                processed += 1
-                total_detections += len(result.detections)
-                total_inference_ms += result.inference_ms
+            try:
+                for frame_number, frame in processor.frames():
+                    loop_start = time.perf_counter()
+                    result = detector.detect(frame)
+                    tracked = tracker.update(result.detections, frame_number)
 
-                if frame_number % log_interval == 0:
-                    logger.info(
-                        "Frame %d/%d: %d persons, %d active tracks (%.1f ms).",
-                        frame_number,
-                        info.frame_count,
-                        len(result.detections),
-                        len(tracked),
-                        result.inference_ms,
+                    processed += 1
+                    total_detections += len(result.detections)
+                    total_inference_ms += result.inference_ms
+
+                    fps = 1.0 / max(time.perf_counter() - loop_start, 1e-6)
+                    annotated = visualizer.annotate(
+                        frame,
+                        tracked,
+                        frame_number=frame_number,
+                        fps=fps,
+                        active_tracks=len(tracker.active_ids),
+                        total_tracks=tracker.total_registered,
                     )
+
+                    if writer is not None:
+                        writer.write(annotated)
+
+                    if args.display and not _show_frame(window, annotated):
+                        logger.info("Display closed by user (ESC).")
+                        break
+
+                    if frame_number % log_interval == 0:
+                        logger.info(
+                            "Frame %d/%d: %d persons, %d active tracks (%.1f ms).",
+                            frame_number,
+                            info.frame_count,
+                            len(result.detections),
+                            len(tracked),
+                            result.inference_ms,
+                        )
+
+                    if args.max_frames and processed >= args.max_frames:
+                        logger.info("Reached --max-frames limit (%d).", args.max_frames)
+                        break
+            finally:
+                if writer is not None:
+                    writer.release()
+                if args.display:
+                    cv2.destroyAllWindows()
 
             if processed:
                 avg_ms = total_inference_ms / processed
@@ -151,6 +201,8 @@ def run(args: argparse.Namespace) -> int:
                     avg_ms,
                     1000.0 / avg_ms if avg_ms else 0.0,
                 )
+                if args.save_video:
+                    logger.info("Saved annotated video to %s.", _output_video_path(info, output_dir))
             else:
                 logger.warning("No frames were processed from '%s'.", info.name)
     except VideoLoadError as exc:
@@ -158,6 +210,37 @@ def run(args: argparse.Namespace) -> int:
         return 1
 
     return 0
+
+
+def _output_video_path(info: object, output_dir: Path) -> Path:
+    """Return the annotated output video path for an input source."""
+    return output_dir / f"annotated_{info.name}.mp4"  # type: ignore[attr-defined]
+
+
+def _create_writer(
+    args: argparse.Namespace, info: object, output_dir: Path
+) -> cv2.VideoWriter:
+    """Create a VideoWriter matching the input's dimensions and frame rate."""
+    path = _output_video_path(info, output_dir)
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    writer = cv2.VideoWriter(
+        str(path),
+        fourcc,
+        info.frame_rate,  # type: ignore[attr-defined]
+        (info.width, info.height),  # type: ignore[attr-defined]
+    )
+    logger.info("Writing annotated video to %s.", path)
+    return writer
+
+
+def _show_frame(window: str, frame: object) -> bool:
+    """Display a frame; return False if the user pressed ESC."""
+    try:
+        cv2.imshow(window, frame)
+        return (cv2.waitKey(1) & 0xFF) != ESC_KEY
+    except cv2.error as exc:  # pragma: no cover - headless environments
+        logger.warning("Display unavailable (%s); continuing without window.", exc)
+        return True
 
 
 def main(argv: list[str] | None = None) -> int:

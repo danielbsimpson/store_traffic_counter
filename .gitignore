@@ -11,13 +11,18 @@ env/
 .coverage
 htmlcov/
 
-# Model weights
-models/*.pt
+# Model weights (downloaded automatically at runtime)
+*.pt
+*.onnx
+*.engine
 models/*.weights
-models/*.onnx
 
 # Output artifacts
 output/
+
+# Temporary run / test logs
+run_log.txt
+test_results.txt
 
 # Dataset (large; downloaded separately)
 data/MOT17*/
