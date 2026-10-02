@@ -12,7 +12,7 @@
 
 ## Overview
 
-Store Traffic Counter is a proof-of-concept system for counting customers entering and exiting a retail space using computer vision. It processes video feeds (or image sequences) to detect individuals, tracks them across frames, and visualizes the results in real time. Virtual tripwire crossing and in/out counting are the next milestone.
+Store Traffic Counter is a proof-of-concept system for counting customers entering and exiting a retail space using computer vision. It processes video feeds (or image sequences) to detect individuals, tracks them across frames, and counts entries/exits via a virtual tripwire, visualizing the results in real time.
 
 This project leverages modern deep learning models (YOLOv8, OpenCV) combined with centroid-based tracking. It is developed against the MOT17 pedestrian benchmark and designed with containerization in mind for easy deployment.
 
@@ -21,11 +21,11 @@ This project leverages modern deep learning models (YOLOv8, OpenCV) combined wit
 **Implemented:**
 - **Person Detection** - Interchangeable detectors: YOLOv8 (Ultralytics) or OpenCV's built-in HOG + SVM pedestrian detector
 - **Multi-Object Tracking** - Centroid-based tracking for consistent person IDs across frames, with distance gating and a disappearance timeout
+- **Virtual Tripwire Counting** - Configurable tripwire line (horizontal or angled to match a storefront's perspective) with hysteresis-gated entry/exit counting (`--tripwire-start`/`--tripwire-end`)
 - **Flexible Input** - Standard video files (MP4, AVI, MOV, MKV) *and* MOT17-style image sequences (`img1/%06d.jpg` + `seqinfo.ini`)
-- **Real-time Visualization** - Live window and/or saved annotated video with ID-colored boxes, confidence labels, and a heads-up display (frame number, FPS, track counts)
+- **Real-time Visualization** - Live window and/or saved annotated video with ID-colored boxes, confidence labels, a directional tripwire line, and a heads-up display (frame number, FPS, track counts, IN/OUT tallies)
 
 **In progress / planned:**
-- **Virtual Tripwire Counting** - Entry/exit counting from line crossings (overlay hooks already in place)
 - **Metrics Logging** - CSV event logs and JSON summary metrics
 - **Docker Support** - Containerized deployment for reproducibility
 - **Family Detection** - Grouping related individuals to improve conversion metrics
@@ -53,16 +53,19 @@ Video / Image Sequence Input
     ↓
 [Centroid Tracking] → Unique ID assignment per person
     ↓
+[Tripwire Crossing] → In/out counts
+    ↓
 [Visualization] → Live display + annotated video
     ↓
-[Tripwire Crossing + Logging] → In/out counts + data export (planned)
+[Logging] → Data export (planned)
 ```
 
 **Key Components:**
 - **Detector** (`detector.py`): Identifies people in each frame (YOLOv8 or OpenCV HOG)
 - **Tracker** (`tracker.py`): Associates detections across frames using centroid distance
+- **Counter** (`counter.py`): Tripwire crossing detection and in/out tallying
 - **Visualizer** (`visualizer.py`): Renders overlays for live display and annotated video
-- **Counter / Logger** *(planned)*: Tripwire crossing detection and structured data export
+- **Logger** *(planned)*: Structured CSV/JSON data export
 
 ## Getting Started
 
@@ -122,6 +125,8 @@ OPTIONS:
   --display                 Show the real-time window (press ESC to quit)
   --save-video              Save an annotated MP4 to the output directory
   --max-frames INT          Process at most N frames (0 = all; useful for quick checks)
+  --tripwire-start X,Y      Tripwire start point as fractions of frame width,height (default: 0.0,0.5)
+  --tripwire-end X,Y        Tripwire end point as fractions of frame width,height (default: 1.0,0.5)
   --verbose                 Enable DEBUG-level logging
   --help                    Show this help message
 ```
@@ -144,6 +149,11 @@ python src/main.py --video footage.mp4 --model opencv --confidence 0.6
 python src/main.py --video footage.mp4 --model yolo --device gpu
 ```
 
+**Angle the tripwire to follow a storefront's perspective:**
+```bash
+python src/main.py --video data/MOT17-09-DPM --save-video --tripwire-start "0.0,0.72" --tripwire-end "1.0,0.42"
+```
+
 ## Demo Dataset
 
 The pipeline is developed and demoed against the [MOT17](https://motchallenge.net/data/MOT17) pedestrian tracking benchmark. Sequences are provided as numbered JPEG frames plus a `seqinfo.ini`; the loader reads them directly (no conversion needed).
@@ -162,7 +172,8 @@ The pipeline is developed and demoed against the [MOT17](https://motchallenge.ne
 With `--display` and/or `--save-video`, each frame is overlaid with:
 - Person bounding boxes, color-coded per tracking ID
 - Track ID and detection confidence labels
-- A heads-up display: active/total track counts (top-left), frame number and processing FPS (top-right)
+- A directional tripwire line (IN/OUT arrows) at the configured `--tripwire-start`/`--tripwire-end`
+- A heads-up display: live IN/OUT tallies and active/total track counts (top-left), frame number and processing FPS (top-right)
 
 Saved videos are written to `output/annotated_<name>.mp4`.
 
@@ -197,6 +208,7 @@ store_traffic_counter/
 │   ├── video_loader.py   # VideoProcessor: video files + MOT17 image sequences
 │   ├── detector.py       # Detector base class, YOLODetector, OpenCVDetector
 │   ├── tracker.py        # CentroidTracker for multi-object tracking
+│   ├── counter.py        # TripwireCounter for entry/exit counting
 │   └── visualizer.py     # VideoVisualizer overlay rendering
 ├── tests/                # Pytest unit tests
 ├── plan/                 # Implementation plan

@@ -28,6 +28,17 @@ class TrackedObject:
     confidence: float
     frame_number: int
 
+    @property
+    def foot(self) -> tuple[int, int]:
+        """Bottom-center of the box, where the person meets the floor.
+
+        More reliable than the centroid for ground-plane reasoning (tripwire
+        crossings, proximity) in perspective scenes, since feet sit on the
+        floor while the centroid floats at torso height.
+        """
+        x1, _, x2, y2 = self.box
+        return (x1 + x2) // 2, y2
+
 
 class CentroidTracker:
     """Tracks persons across frames using nearest-centroid matching.

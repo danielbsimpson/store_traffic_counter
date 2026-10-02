@@ -1,9 +1,9 @@
 """Store Traffic Counter - command-line entry point.
 
 Loads an input source (video file or MOT17 image sequence), runs person
-detection and centroid tracking, and renders real-time overlays that can be
-displayed live and/or saved to an annotated video. Tripwire counting and data
-export are added in later phases.
+detection, centroid tracking, and tripwire crossing counting, and renders
+real-time overlays that can be displayed live and/or saved to an annotated
+video. Structured CSV/JSON data export is added in a later phase.
 """
 
 from __future__ import annotations
@@ -22,13 +22,26 @@ from config import (
     LOG_DATE_FORMAT,
     LOG_FORMAT,
     OUTPUT_DIR,
+    TRIPWIRE_POSITION,
 )
+from counter import TripwireCounter
 from detector import DetectorError, create_detector
 from tracker import CentroidTracker
 from visualizer import VideoVisualizer
 from video_loader import VideoLoadError, VideoProcessor
 
 logger = logging.getLogger("store_traffic_counter")
+
+
+def _parse_fraction_pair(value: str) -> tuple[float, float]:
+    """Parse a tripwire endpoint given as 'X,Y' fractions (each 0.0-1.0)."""
+    try:
+        x_str, y_str = value.split(",")
+        return float(x_str), float(y_str)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            f"expected 'X,Y' fractions (e.g. '0.0,0.5'), got {value!r}"
+        ) from exc
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -82,6 +95,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="Process at most this many frames (0 = all). Useful for quick visual checks.",
     )
     parser.add_argument(
+        "--tripwire-start",
+        type=_parse_fraction_pair,
+        default=(0.0, TRIPWIRE_POSITION),
+        metavar="X,Y",
+        help=(
+            "Tripwire start point as 'X,Y' fractions of frame width/height "
+            f"(default: 0.0,{TRIPWIRE_POSITION}). Use with --tripwire-end to angle "
+            "the line, e.g. to follow a storefront's perspective."
+        ),
+    )
+    parser.add_argument(
+        "--tripwire-end",
+        type=_parse_fraction_pair,
+        default=(1.0, TRIPWIRE_POSITION),
+        metavar="X,Y",
+        help=(
+            "Tripwire end point as 'X,Y' fractions of frame width/height "
+            f"(default: 1.0,{TRIPWIRE_POSITION})."
+        ),
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         help="Enable DEBUG-level logging.",
@@ -99,7 +133,7 @@ def configure_logging(verbose: bool) -> None:
 
 
 def run(args: argparse.Namespace) -> int:
-    """Run detection, tracking, and real-time visualization."""
+    """Run detection, tracking, tripwire counting, and real-time visualization."""
     if not 0.0 <= args.confidence <= 1.0:
         logger.error("Confidence must be between 0.0 and 1.0 (got %s).", args.confidence)
         return 2
@@ -119,7 +153,6 @@ def run(args: argparse.Namespace) -> int:
         return 1
 
     tracker = CentroidTracker()
-    visualizer = VideoVisualizer()
 
     try:
         with VideoProcessor(args.video) as processor:
@@ -134,8 +167,19 @@ def run(args: argparse.Namespace) -> int:
                 info.frame_count,
             )
 
-            writer = _create_writer(args, info, output_dir) if args.save_video else None
             window = f"Store Traffic Counter - {info.name}"
+            try:
+                counter = TripwireCounter(
+                    frame_width=info.width,
+                    frame_height=info.height,
+                    start=args.tripwire_start,
+                    end=args.tripwire_end,
+                )
+            except ValueError as exc:
+                logger.error("Invalid tripwire configuration: %s", exc)
+                return 2
+            visualizer = VideoVisualizer(tripwire=counter.line)
+            writer = _create_writer(args, info, output_dir) if args.save_video else None
 
             processed = 0
             total_detections = 0
@@ -147,6 +191,15 @@ def run(args: argparse.Namespace) -> int:
                     loop_start = time.perf_counter()
                     result = detector.detect(frame)
                     tracked = tracker.update(result.detections, frame_number)
+                    events = counter.update(tracked, frame_number)
+                    for event in events:
+                        logger.info(
+                            "Track %d crossed tripwire -> %s (in=%d, out=%d).",
+                            event.person_id,
+                            event.direction.upper(),
+                            event.cumulative_in,
+                            event.cumulative_out,
+                        )
 
                     processed += 1
                     total_detections += len(result.detections)
@@ -160,6 +213,8 @@ def run(args: argparse.Namespace) -> int:
                         fps=fps,
                         active_tracks=len(tracker.active_ids),
                         total_tracks=tracker.total_registered,
+                        counts=counter.counts,
+                        events=events,
                     )
 
                     if writer is not None:
@@ -200,6 +255,13 @@ def run(args: argparse.Namespace) -> int:
                     avg_per_frame,
                     avg_ms,
                     1000.0 / avg_ms if avg_ms else 0.0,
+                )
+                total_in, total_out = counter.counts
+                logger.info(
+                    "Tripwire counts: IN=%d | OUT=%d | net occupancy=%d.",
+                    total_in,
+                    total_out,
+                    total_in - total_out,
                 )
                 if args.save_video:
                     logger.info("Saved annotated video to %s.", _output_video_path(info, output_dir))

@@ -2,19 +2,41 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import numpy as np
 
+from config import (
+    VIS_COLOR_DEFAULT,
+    VIS_COLOR_IN,
+    VIS_COLOR_NEAR_TRIPWIRE,
+    VIS_COLOR_OUT,
+    VIS_CROSSING_HIGHLIGHT_FRAMES,
+)
+from counter import CountEvent
 from tracker import TrackedObject
 from visualizer import VideoVisualizer
 
 
-def _track(track_id: int = 0) -> TrackedObject:
+def _track(track_id: int = 0, box: tuple[int, int, int, int] = (100, 100, 200, 300)) -> TrackedObject:
+    x1, y1, x2, y2 = box
     return TrackedObject(
         id=track_id,
-        box=(100, 100, 200, 300),
-        centroid=(150, 200),
+        box=box,
+        centroid=((x1 + x2) // 2, (y1 + y2) // 2),
         confidence=0.88,
         frame_number=1,
+    )
+
+
+def _crossing_event(person_id: int, direction: str) -> CountEvent:
+    return CountEvent(
+        timestamp=datetime.now(timezone.utc),
+        frame_number=1,
+        person_id=person_id,
+        direction=direction,
+        cumulative_in=1 if direction == "in" else 0,
+        cumulative_out=1 if direction == "out" else 0,
     )
 
 
@@ -73,3 +95,44 @@ def test_counts_overlay_drawn_when_provided() -> None:
     vis = VideoVisualizer()
     out = vis.annotate(frame, [], counts=(7, 5))
     assert out.sum() > 0
+
+
+def test_default_box_color_is_grey() -> None:
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    vis = VideoVisualizer(show_hud=False)
+    out = vis.annotate(frame, [_track(box=(100, 100, 140, 140))])
+    assert tuple(int(c) for c in out[100, 100]) == VIS_COLOR_DEFAULT
+
+
+def test_box_color_turns_blue_near_tripwire() -> None:
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    vis = VideoVisualizer(show_hud=False, tripwire=((0, 200), (640, 200)))
+    track = _track(box=(100, 180, 140, 220))  # centroid (120, 200) sits on the line
+    out = vis.annotate(frame, [track])
+    assert tuple(int(c) for c in out[180, 100]) == VIS_COLOR_NEAR_TRIPWIRE
+
+
+def test_box_color_turns_green_after_in_crossing() -> None:
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    vis = VideoVisualizer(show_hud=False)
+    track = _track(track_id=2, box=(300, 300, 340, 340))
+    out = vis.annotate(frame, [track], events=[_crossing_event(2, "in")])
+    assert tuple(int(c) for c in out[300, 300]) == VIS_COLOR_IN
+
+
+def test_box_color_turns_red_after_out_crossing() -> None:
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    vis = VideoVisualizer(show_hud=False)
+    track = _track(track_id=3, box=(300, 300, 340, 340))
+    out = vis.annotate(frame, [track], events=[_crossing_event(3, "out")])
+    assert tuple(int(c) for c in out[300, 300]) == VIS_COLOR_OUT
+
+
+def test_crossing_highlight_expires_back_to_default() -> None:
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    vis = VideoVisualizer(show_hud=False)
+    track = _track(track_id=4, box=(300, 300, 340, 340))
+    vis.annotate(frame, [track], events=[_crossing_event(4, "out")])
+    for _ in range(VIS_CROSSING_HIGHLIGHT_FRAMES):
+        out = vis.annotate(frame, [track])
+    assert tuple(int(c) for c in out[300, 300]) == VIS_COLOR_DEFAULT
