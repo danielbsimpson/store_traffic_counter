@@ -21,15 +21,15 @@ Progress tracker for the Store Traffic Counter pipeline. See [plan/feature-pipel
 
 ## Phase 2: Person Detection Module
 
-- [ ] TASK-010 — Implement detector.py with abstract Detector base class
-- [ ] TASK-011 — Create YOLODetector subclass (yolov8n / yolov8s)
-- [ ] TASK-012 — Create OpenCVDetector subclass using DNN module
-- [ ] TASK-013 — Implement confidence threshold filtering
-- [ ] TASK-014 — Standardize return format {box, confidence, class_label}
-- [ ] TASK-015 — Add GPU/CPU device selection (--device flag)
-- [ ] TASK-016 — Implement YOLO model weight auto-download
-- [ ] TASK-017 — Write unit tests in tests/test_detector.py
-- [ ] TASK-018 — Add inference timing instrumentation
+- [x] TASK-010 — Implement detector.py with abstract Detector base class
+- [x] TASK-011 — Create YOLODetector subclass (yolov8n / yolov8s)
+- [x] TASK-012 — Create OpenCVDetector subclass (HOG + SVM pedestrian detector)
+- [x] TASK-013 — Implement confidence threshold filtering
+- [x] TASK-014 — Standardize return format {box, confidence, class_label}
+- [x] TASK-015 — Add GPU/CPU device selection (--device flag)
+- [x] TASK-016 — Implement YOLO model weight auto-download
+- [x] TASK-017 — Write unit tests in tests/test_detector.py
+- [x] TASK-018 — Add inference timing instrumentation
 
 ## Phase 3: Multi-Object Tracking Module
 
@@ -142,7 +142,7 @@ Progress tracker for the Store Traffic Counter pipeline. See [plan/feature-pipel
 | Phase | Completed | Total |
 |-------|-----------|-------|
 | 1. Core Infrastructure | 10 | 10 |
-| 2. Person Detection | 0 | 9 |
+| 2. Person Detection | 9 | 9 |
 | 3. Multi-Object Tracking | 0 | 9 |
 | 4. Tripwire & Counting | 0 | 9 |
 | 5. Visualization | 0 | 12 |
@@ -151,4 +151,4 @@ Progress tracker for the Store Traffic Counter pipeline. See [plan/feature-pipel
 | 8. Docker | 0 | 10 |
 | 9. Testing & QA | 0 | 9 |
 | 10. Documentation | 1 | 10 |
-| **Total** | **11** | **99** |
+| **Total** | **20** | **99** |

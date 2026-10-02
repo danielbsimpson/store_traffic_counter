@@ -80,7 +80,7 @@ This implementation plan outlines the complete development of the Store Traffic 
 |------|-------------|-----------|------|
 | TASK-010 | Implement detector.py with abstract Detector base class defining interface (detect method signature) | | |
 | TASK-011 | Create YOLODetector subclass wrapping ultralytics YOLO (yolov8n for speed, yolov8s for accuracy) | | |
-| TASK-012 | Create OpenCVDetector subclass using DNN module with pre-trained model support | | |
+| TASK-012 | Create OpenCVDetector subclass using the built-in HOG + SVM pedestrian detector (offline, no weights) | | |
 | TASK-013 | Implement confidence threshold filtering in both detector classes | | |
 | TASK-014 | Add return format standardization: list of dicts with keys {box, confidence, class_label} where box=[x1,y1,x2,y2] | | |
 | TASK-015 | Add GPU/CPU device selection logic (--device flag) | | |

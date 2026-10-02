@@ -18,6 +18,7 @@ from config import (
     LOG_FORMAT,
     OUTPUT_DIR,
 )
+from detector import DetectorError, create_detector
 from video_loader import VideoLoadError, VideoProcessor
 
 logger = logging.getLogger("store_traffic_counter")
@@ -80,7 +81,7 @@ def configure_logging(verbose: bool) -> None:
 
 
 def run(args: argparse.Namespace) -> int:
-    """Execute the Phase 1 pipeline: load and inspect the input source."""
+    """Execute the pipeline through person detection (Phases 1-2)."""
     if not 0.0 <= args.confidence <= 1.0:
         logger.error("Confidence must be between 0.0 and 1.0 (got %s).", args.confidence)
         return 2
@@ -88,6 +89,16 @@ def run(args: argparse.Namespace) -> int:
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
     logger.debug("Output directory ready: %s", output_dir)
+
+    try:
+        detector = create_detector(
+            model=args.model,
+            confidence_threshold=args.confidence,
+            device=args.device,
+        )
+    except DetectorError as exc:
+        logger.error("Failed to initialize detector: %s", exc)
+        return 1
 
     try:
         with VideoProcessor(args.video) as processor:
@@ -101,10 +112,41 @@ def run(args: argparse.Namespace) -> int:
                 info.frame_rate,
                 info.frame_count,
             )
+
             processed = 0
-            for _frame_number, _frame in processor.frames():
+            total_detections = 0
+            total_inference_ms = 0.0
+            log_interval = max(1, info.frame_count // 20) if info.frame_count else 50
+
+            for frame_number, frame in processor.frames():
+                result = detector.detect(frame)
                 processed += 1
-            logger.info("Read %d frames from '%s'.", processed, info.name)
+                total_detections += len(result.detections)
+                total_inference_ms += result.inference_ms
+
+                if frame_number % log_interval == 0:
+                    logger.info(
+                        "Frame %d/%d: %d persons (%.1f ms).",
+                        frame_number,
+                        info.frame_count,
+                        len(result.detections),
+                        result.inference_ms,
+                    )
+
+            if processed:
+                avg_ms = total_inference_ms / processed
+                avg_per_frame = total_detections / processed
+                logger.info(
+                    "Processed %d frames | %d total detections | "
+                    "%.2f avg persons/frame | %.1f ms avg inference (%.1f FPS).",
+                    processed,
+                    total_detections,
+                    avg_per_frame,
+                    avg_ms,
+                    1000.0 / avg_ms if avg_ms else 0.0,
+                )
+            else:
+                logger.warning("No frames were processed from '%s'.", info.name)
     except VideoLoadError as exc:
         logger.error("Failed to load input: %s", exc)
         return 1

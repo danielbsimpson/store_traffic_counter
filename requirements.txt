@@ -1,6 +1,6 @@
 # Core computer vision & numerical
-opencv-python>=4.8
-numpy>=1.24
+opencv-python>=4.8,<5
+numpy>=1.24,<2.3
 
 # Progress bars
 tqdm>=4.65
