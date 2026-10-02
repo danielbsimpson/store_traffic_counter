@@ -27,6 +27,10 @@ MIN_FRAME_HEIGHT: int = 240
 # Detection defaults
 DEFAULT_CONFIDENCE_THRESHOLD: float = 0.5
 
+# Tracking defaults
+TRACKER_MAX_DISTANCE: float = 50.0  # max centroid distance (px) to match an existing track
+TRACKER_MAX_DISAPPEARED: int = 30  # frames a track may be unseen before deregistration
+
 # Logging
 LOG_FORMAT: str = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
 LOG_DATE_FORMAT: str = "%Y-%m-%d %H:%M:%S"

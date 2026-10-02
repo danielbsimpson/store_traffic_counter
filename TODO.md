@@ -33,15 +33,15 @@ Progress tracker for the Store Traffic Counter pipeline. See [plan/feature-pipel
 
 ## Phase 3: Multi-Object Tracking Module
 
-- [ ] TASK-019 — Implement tracker.py with CentroidTracker class
-- [ ] TASK-020 — Define centroid calculation from bounding box
-- [ ] TASK-021 — Implement Euclidean distance metric between centroids
-- [ ] TASK-022 — Add configurable max_distance threshold (default 50px)
-- [ ] TASK-023 — Implement ID persistence and new-ID assignment logic
-- [ ] TASK-024 — Add 30-frame timeout mechanism for lost IDs
-- [ ] TASK-025 — Return tracked objects {id, bbox, centroid, confidence, frame_number}
-- [ ] TASK-026 — Implement frame-to-frame ID history logging
-- [ ] TASK-027 — Write unit tests in tests/test_tracker.py
+- [x] TASK-019 — Implement tracker.py with CentroidTracker class
+- [x] TASK-020 — Define centroid calculation from bounding box
+- [x] TASK-021 — Implement Euclidean distance metric between centroids
+- [x] TASK-022 — Add configurable max_distance threshold (default 50px)
+- [x] TASK-023 — Implement ID persistence and new-ID assignment logic
+- [x] TASK-024 — Add 30-frame timeout mechanism for lost IDs
+- [x] TASK-025 — Return tracked objects {id, bbox, centroid, confidence, frame_number}
+- [x] TASK-026 — Implement frame-to-frame ID history logging
+- [x] TASK-027 — Write unit tests in tests/test_tracker.py
 
 ## Phase 4: Virtual Tripwire & Counting Logic
 
@@ -143,7 +143,7 @@ Progress tracker for the Store Traffic Counter pipeline. See [plan/feature-pipel
 |-------|-----------|-------|
 | 1. Core Infrastructure | 10 | 10 |
 | 2. Person Detection | 9 | 9 |
-| 3. Multi-Object Tracking | 0 | 9 |
+| 3. Multi-Object Tracking | 9 | 9 |
 | 4. Tripwire & Counting | 0 | 9 |
 | 5. Visualization | 0 | 12 |
 | 6. Metrics Logging | 0 | 11 |
@@ -151,4 +151,4 @@ Progress tracker for the Store Traffic Counter pipeline. See [plan/feature-pipel
 | 8. Docker | 0 | 10 |
 | 9. Testing & QA | 0 | 9 |
 | 10. Documentation | 1 | 10 |
-| **Total** | **20** | **99** |
+| **Total** | **29** | **99** |

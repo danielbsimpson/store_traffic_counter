@@ -19,6 +19,7 @@ from config import (
     OUTPUT_DIR,
 )
 from detector import DetectorError, create_detector
+from tracker import CentroidTracker
 from video_loader import VideoLoadError, VideoProcessor
 
 logger = logging.getLogger("store_traffic_counter")
@@ -100,6 +101,8 @@ def run(args: argparse.Namespace) -> int:
         logger.error("Failed to initialize detector: %s", exc)
         return 1
 
+    tracker = CentroidTracker()
+
     try:
         with VideoProcessor(args.video) as processor:
             info = processor.info
@@ -120,16 +123,18 @@ def run(args: argparse.Namespace) -> int:
 
             for frame_number, frame in processor.frames():
                 result = detector.detect(frame)
+                tracked = tracker.update(result.detections, frame_number)
                 processed += 1
                 total_detections += len(result.detections)
                 total_inference_ms += result.inference_ms
 
                 if frame_number % log_interval == 0:
                     logger.info(
-                        "Frame %d/%d: %d persons (%.1f ms).",
+                        "Frame %d/%d: %d persons, %d active tracks (%.1f ms).",
                         frame_number,
                         info.frame_count,
                         len(result.detections),
+                        len(tracked),
                         result.inference_ms,
                     )
 
@@ -137,10 +142,11 @@ def run(args: argparse.Namespace) -> int:
                 avg_ms = total_inference_ms / processed
                 avg_per_frame = total_detections / processed
                 logger.info(
-                    "Processed %d frames | %d total detections | "
+                    "Processed %d frames | %d total detections | %d unique tracks | "
                     "%.2f avg persons/frame | %.1f ms avg inference (%.1f FPS).",
                     processed,
                     total_detections,
+                    tracker.total_registered,
                     avg_per_frame,
                     avg_ms,
                     1000.0 / avg_ms if avg_ms else 0.0,
