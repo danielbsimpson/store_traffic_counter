@@ -8,14 +8,27 @@ that go unseen for longer than a timeout are deregistered.
 from __future__ import annotations
 
 import logging
+import math
+from collections import deque
 from dataclasses import dataclass
 
 import numpy as np
 
-from config import TRACKER_MAX_DISAPPEARED, TRACKER_MAX_DISTANCE
+from config import (
+    TRACK_STATIC_MAX_DISPLACEMENT,
+    TRACK_STATIC_WINDOW,
+    TRACKER_MAX_DISAPPEARED,
+    TRACKER_MAX_DISTANCE,
+)
 from detector import Detection
 
 logger = logging.getLogger(__name__)
+
+
+def _foot_point(box: tuple[int, int, int, int]) -> tuple[int, int]:
+    """Bottom-center of a box, where the person meets the floor."""
+    x1, _, x2, y2 = box
+    return (x1 + x2) // 2, y2
 
 
 @dataclass(frozen=True)
@@ -27,6 +40,7 @@ class TrackedObject:
     centroid: tuple[int, int]
     confidence: float
     frame_number: int
+    is_static: bool = False  # fixed scene object (mannequin/standee/sign), not a pedestrian
 
     @property
     def foot(self) -> tuple[int, int]:
@@ -36,8 +50,7 @@ class TrackedObject:
         crossings, proximity) in perspective scenes, since feet sit on the
         floor while the centroid floats at torso height.
         """
-        x1, _, x2, y2 = self.box
-        return (x1 + x2) // 2, y2
+        return _foot_point(self.box)
 
 
 class CentroidTracker:
@@ -54,12 +67,17 @@ class CentroidTracker:
         self,
         max_distance: float = TRACKER_MAX_DISTANCE,
         max_disappeared: int = TRACKER_MAX_DISAPPEARED,
+        static_window: int = TRACK_STATIC_WINDOW,
+        static_max_displacement: float = TRACK_STATIC_MAX_DISPLACEMENT,
     ) -> None:
         self.max_distance = max_distance
         self.max_disappeared = max_disappeared
+        self.static_window = static_window
+        self.static_max_displacement = static_max_displacement
         self._next_id = 0
         self._objects: dict[int, TrackedObject] = {}
         self._disappeared: dict[int, int] = {}
+        self._history: dict[int, deque[tuple[int, int]]] = {}
 
     @property
     def active_ids(self) -> list[int]:
@@ -72,22 +90,42 @@ class CentroidTracker:
         return self._next_id
 
     def _register(self, detection: Detection, frame_number: int) -> None:
+        object_id = self._next_id
+        self._record_position(object_id, detection)
         obj = TrackedObject(
-            id=self._next_id,
+            id=object_id,
             box=detection.box,
             centroid=detection.centroid,
             confidence=detection.confidence,
             frame_number=frame_number,
+            is_static=self._is_static(object_id),
         )
-        self._objects[self._next_id] = obj
-        self._disappeared[self._next_id] = 0
-        logger.debug("Registered track %d at %s (frame %d).", self._next_id, obj.centroid, frame_number)
+        self._objects[object_id] = obj
+        self._disappeared[object_id] = 0
+        logger.debug("Registered track %d at %s (frame %d).", object_id, obj.centroid, frame_number)
         self._next_id += 1
 
     def _deregister(self, object_id: int) -> None:
         logger.debug("Deregistered track %d.", object_id)
         self._objects.pop(object_id, None)
         self._disappeared.pop(object_id, None)
+        self._history.pop(object_id, None)
+
+    def _record_position(self, object_id: int, detection: Detection) -> None:
+        """Append this frame's foot point to the track's trailing motion window."""
+        history = self._history.get(object_id)
+        if history is None:
+            history = deque(maxlen=self.static_window)
+            self._history[object_id] = history
+        history.append(_foot_point(detection.box))
+
+    def _is_static(self, object_id: int) -> bool:
+        """True once a track has filled its window with near-zero net motion."""
+        history = self._history.get(object_id)
+        if history is None or len(history) < self.static_window:
+            return False
+        (x0, y0), (x1, y1) = history[0], history[-1]
+        return math.hypot(x1 - x0, y1 - y0) < self.static_max_displacement
 
     def _mark_all_disappeared(self) -> None:
         for object_id in list(self._disappeared.keys()):
@@ -149,12 +187,14 @@ class CentroidTracker:
                 continue
             object_id = object_ids[row]
             detection = detections[col]
+            self._record_position(object_id, detection)
             self._objects[object_id] = TrackedObject(
                 id=object_id,
                 box=detection.box,
                 centroid=detection.centroid,
                 confidence=detection.confidence,
                 frame_number=frame_number,
+                is_static=self._is_static(object_id),
             )
             self._disappeared[object_id] = 0
             used_rows.add(row)

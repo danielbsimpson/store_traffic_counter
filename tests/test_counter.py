@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from counter import TripwireCounter
+from counter import TripwireCounter, distance_to_segment
 from tracker import TrackedObject
 
 
@@ -128,3 +128,108 @@ def test_debounce_cancels_on_return_to_original_side() -> None:
     # One frame below again is not enough; the bounce never counted.
     assert counter.update([_obj(0, cy=300)], frame_number=4) == []
     assert counter.counts == (0, 0)
+
+
+# --- Doorway reinforcement (door_mode) ---------------------------------------
+
+
+def _door_counter(**kwargs: object) -> TripwireCounter:
+    """A horizontal-line counter in door mode with a short disappear window."""
+    return TripwireCounter(
+        frame_width=640,
+        frame_height=480,
+        hysteresis=5,
+        debounce_frames=1,
+        door_mode=True,
+        disappear_frames=3,
+        **kwargs,  # type: ignore[arg-type]
+    )
+
+
+def test_distance_to_segment_accounts_for_endpoints() -> None:
+    line = ((100, 100), (300, 100))
+    # Directly below the middle of the segment: perpendicular distance only.
+    assert distance_to_segment((200, 140), line) == pytest.approx(40.0)
+    # Beyond the right endpoint: distance measured to the endpoint, not the
+    # infinite line (which would wrongly report 0).
+    assert distance_to_segment((400, 100), line) == pytest.approx(100.0)
+
+
+def test_door_vanish_while_heading_inside_counts_in() -> None:
+    counter = _door_counter()
+    # Approach the door from outside (above), moving steadily inward.
+    counter.update([_obj(0, cy=160)], frame_number=1)
+    counter.update([_obj(0, cy=200)], frame_number=2)
+    counter.update([_obj(0, cy=230)], frame_number=3)  # last seen at the door
+    # Then the detection vanishes (walked inside). No count until the window.
+    assert counter.update([], frame_number=4) == []
+    assert counter.update([], frame_number=5) == []
+    events = counter.update([], frame_number=6)
+    assert len(events) == 1
+    assert events[0].direction == "in"
+    assert counter.counts == (1, 0)
+
+
+def test_door_appearance_then_step_out_counts_out() -> None:
+    counter = _door_counter()
+    # Materialize right at the threshold, then step outside (above) the line.
+    counter.update([_obj(0, cy=240)], frame_number=1)  # in the hysteresis band
+    events = counter.update([_obj(0, cy=150)], frame_number=2)  # now clearly outside
+    assert len(events) == 1
+    assert events[0].direction == "out"
+    assert counter.counts == (0, 1)
+
+
+def test_door_vanish_without_inward_motion_ignored() -> None:
+    counter = _door_counter()
+    # Walk parallel to the frontage near the line (constant distance), then vanish.
+    counter.update([_obj(0, cx=100, cy=200)], frame_number=1)
+    counter.update([_obj(0, cx=300, cy=200)], frame_number=2)
+    counter.update([_obj(0, cx=500, cy=200)], frame_number=3)
+    for frame in (4, 5, 6):
+        counter.update([], frame_number=frame)
+    assert counter.counts == (0, 0)
+
+
+def test_door_vanish_at_frame_edge_ignored() -> None:
+    # Line near the bottom edge; a track vanishing there is leaving the camera
+    # view, not entering a store.
+    counter = TripwireCounter(
+        frame_width=640,
+        frame_height=480,
+        start=(0.0, 0.95),
+        end=(1.0, 0.95),  # line at y=456, inside the 80px bottom edge margin
+        hysteresis=5,
+        debounce_frames=1,
+        door_mode=True,
+        disappear_frames=3,
+    )
+    counter.update([_obj(0, cy=420)], frame_number=1)
+    counter.update([_obj(0, cy=450)], frame_number=2)
+    for frame in (3, 4, 5):
+        counter.update([], frame_number=frame)
+    assert counter.counts == (0, 0)
+
+
+def test_door_no_double_count_after_crossing() -> None:
+    counter = _door_counter()
+    # A clean inward crossing already counts IN...
+    counter.update([_obj(0, cy=160)], frame_number=1)
+    events = counter.update([_obj(0, cy=320)], frame_number=2)
+    assert events[0].direction == "in"
+    # ...so the subsequent vanish at the door must not add a second IN.
+    for frame in (3, 4, 5):
+        counter.update([], frame_number=frame)
+    assert counter.counts == (1, 0)
+
+
+def test_door_mode_off_ignores_appear_and_vanish() -> None:
+    counter = TripwireCounter(
+        frame_width=640, frame_height=480, hysteresis=5, debounce_frames=1
+    )
+    counter.update([_obj(0, cy=160)], frame_number=1)
+    counter.update([_obj(0, cy=230)], frame_number=2)
+    for frame in (3, 4, 5, 6):
+        counter.update([], frame_number=frame)
+    assert counter.counts == (0, 0)
+

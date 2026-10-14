@@ -97,6 +97,31 @@ def test_counts_overlay_drawn_when_provided() -> None:
     assert out.sum() > 0
 
 
+def test_storefront_lines_drawn_when_configured() -> None:
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    vis = VideoVisualizer(
+        show_hud=False,
+        storefronts={"North": ((0, 120), (640, 120)), "South": ((0, 360), (640, 360))},
+    )
+    out = vis.annotate(frame, [])
+    assert out.sum() > 0  # both labelled lines and their arrows are drawn
+
+
+def test_store_counts_overlay_drawn_when_provided() -> None:
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    vis = VideoVisualizer(storefronts={"North": ((0, 120), (640, 120))})
+    out = vis.annotate(frame, [], store_counts={"North": (3, 2)})
+    assert out.sum() > 0
+
+
+def test_box_color_turns_blue_near_storefront_line() -> None:
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    vis = VideoVisualizer(show_hud=False, storefronts={"S": ((0, 200), (640, 200))})
+    track = _track(box=(100, 180, 140, 220))  # foot at (120, 220) near the line
+    out = vis.annotate(frame, [track])
+    assert tuple(int(c) for c in out[180, 100]) == VIS_COLOR_NEAR_TRIPWIRE
+
+
 def test_default_box_color_is_grey() -> None:
     frame = np.zeros((480, 640, 3), dtype=np.uint8)
     vis = VideoVisualizer(show_hud=False)

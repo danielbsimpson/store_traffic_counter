@@ -18,14 +18,17 @@ import cv2
 
 from config import (
     DEFAULT_CONFIDENCE_THRESHOLD,
+    DEFAULT_YOLO_IMGSZ,
     ESC_KEY,
     LOG_DATE_FORMAT,
     LOG_FORMAT,
     OUTPUT_DIR,
+    STOREFRONTS_SUFFIX,
     TRIPWIRE_POSITION,
 )
 from counter import TripwireCounter
 from detector import DetectorError, create_detector
+from storefront import StorefrontConfigError, StorefrontCounter, load_storefronts
 from tracker import CentroidTracker
 from visualizer import VideoVisualizer
 from video_loader import VideoLoadError, VideoProcessor
@@ -73,6 +76,16 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"Detection confidence threshold 0.0-1.0 (default: {DEFAULT_CONFIDENCE_THRESHOLD}).",
     )
     parser.add_argument(
+        "--imgsz",
+        type=int,
+        default=DEFAULT_YOLO_IMGSZ,
+        help=(
+            "YOLO inference resolution (long edge). Larger values recover small, "
+            f"distant people in high-res scenes at the cost of speed (default: {DEFAULT_YOLO_IMGSZ}). "
+            "YOLO only; ignored for --model opencv."
+        ),
+    )
+    parser.add_argument(
         "--device",
         choices=("cpu", "gpu"),
         default="cpu",
@@ -116,6 +129,17 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--storefronts",
+        default=None,
+        metavar="PATH",
+        help=(
+            "Path to a JSON storefront layout defining one named tripwire per "
+            "store entrance, each with its own in/out tally. When omitted, a "
+            f"sibling '<video>{STOREFRONTS_SUFFIX}' file is auto-loaded if present; "
+            "otherwise the single --tripwire line is used."
+        ),
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         help="Enable DEBUG-level logging.",
@@ -147,12 +171,19 @@ def run(args: argparse.Namespace) -> int:
             model=args.model,
             confidence_threshold=args.confidence,
             device=args.device,
+            imgsz=args.imgsz,
         )
     except DetectorError as exc:
         logger.error("Failed to initialize detector: %s", exc)
         return 1
 
     tracker = CentroidTracker()
+
+    try:
+        storefronts = _resolve_storefronts(args)
+    except StorefrontConfigError as exc:
+        logger.error("Invalid storefront layout: %s", exc)
+        return 2
 
     try:
         with VideoProcessor(args.video) as processor:
@@ -168,17 +199,31 @@ def run(args: argparse.Namespace) -> int:
             )
 
             window = f"Store Traffic Counter - {info.name}"
+            use_stores = storefronts is not None
             try:
-                counter = TripwireCounter(
-                    frame_width=info.width,
-                    frame_height=info.height,
-                    start=args.tripwire_start,
-                    end=args.tripwire_end,
-                )
+                if use_stores:
+                    counter: TripwireCounter | StorefrontCounter = StorefrontCounter(
+                        frame_width=info.width,
+                        frame_height=info.height,
+                        storefronts=storefronts,  # type: ignore[arg-type]
+                    )
+                    visualizer = VideoVisualizer(storefronts=counter.lines)
+                    logger.info(
+                        "Tracking %d storefront(s): %s.",
+                        len(counter.names),
+                        ", ".join(counter.names),
+                    )
+                else:
+                    counter = TripwireCounter(
+                        frame_width=info.width,
+                        frame_height=info.height,
+                        start=args.tripwire_start,
+                        end=args.tripwire_end,
+                    )
+                    visualizer = VideoVisualizer(tripwire=counter.line)
             except ValueError as exc:
                 logger.error("Invalid tripwire configuration: %s", exc)
                 return 2
-            visualizer = VideoVisualizer(tripwire=counter.line)
             writer = _create_writer(args, info, output_dir) if args.save_video else None
 
             processed = 0
@@ -191,11 +236,16 @@ def run(args: argparse.Namespace) -> int:
                     loop_start = time.perf_counter()
                     result = detector.detect(frame)
                     tracked = tracker.update(result.detections, frame_number)
-                    events = counter.update(tracked, frame_number)
+                    # Drop fixed scene objects (mannequins, standees, signage)
+                    # so they neither count nor clutter the overlay as people.
+                    people = [t for t in tracked if not t.is_static]
+                    events = counter.update(people, frame_number)
                     for event in events:
+                        where = f"{event.storefront} " if event.storefront else ""
                         logger.info(
-                            "Track %d crossed tripwire -> %s (in=%d, out=%d).",
+                            "Track %d crossed %stripwire -> %s (in=%d, out=%d).",
                             event.person_id,
+                            where,
                             event.direction.upper(),
                             event.cumulative_in,
                             event.cumulative_out,
@@ -208,12 +258,13 @@ def run(args: argparse.Namespace) -> int:
                     fps = 1.0 / max(time.perf_counter() - loop_start, 1e-6)
                     annotated = visualizer.annotate(
                         frame,
-                        tracked,
+                        people,
                         frame_number=frame_number,
                         fps=fps,
-                        active_tracks=len(tracker.active_ids),
+                        active_tracks=len(people),
                         total_tracks=tracker.total_registered,
-                        counts=counter.counts,
+                        counts=counter.totals if use_stores else counter.counts,
+                        store_counts=counter.counts if use_stores else None,
                         events=events,
                     )
 
@@ -256,13 +307,7 @@ def run(args: argparse.Namespace) -> int:
                     avg_ms,
                     1000.0 / avg_ms if avg_ms else 0.0,
                 )
-                total_in, total_out = counter.counts
-                logger.info(
-                    "Tripwire counts: IN=%d | OUT=%d | net occupancy=%d.",
-                    total_in,
-                    total_out,
-                    total_in - total_out,
-                )
+                _log_counts(counter, use_stores)
                 if args.save_video:
                     logger.info("Saved annotated video to %s.", _output_video_path(info, output_dir))
             else:
@@ -272,6 +317,48 @@ def run(args: argparse.Namespace) -> int:
         return 1
 
     return 0
+
+
+def _resolve_storefronts(args: argparse.Namespace) -> list | None:
+    """Resolve storefront definitions from --storefronts or a sibling file.
+
+    Returns the parsed storefronts, or ``None`` to fall back to the single
+    --tripwire line. An explicit --storefronts path that is missing/invalid
+    propagates a :class:`StorefrontConfigError`; the auto-detected sibling is
+    best-effort and only used when it exists.
+    """
+    if args.storefronts:
+        return load_storefronts(args.storefronts)
+
+    sibling = Path(args.video).with_suffix("")
+    sibling = sibling.with_name(sibling.name + STOREFRONTS_SUFFIX)
+    if sibling.is_file():
+        logger.info("Auto-loading storefront layout: %s", sibling)
+        return load_storefronts(sibling)
+    return None
+
+
+def _log_counts(counter: TripwireCounter | StorefrontCounter, use_stores: bool) -> None:
+    """Log the final in/out tally, per storefront when applicable."""
+    if use_stores:
+        assert isinstance(counter, StorefrontCounter)
+        for name, (store_in, store_out) in counter.counts.items():
+            logger.info(
+                "  %s: IN=%d | OUT=%d | net=%d.",
+                name,
+                store_in,
+                store_out,
+                store_in - store_out,
+            )
+        total_in, total_out = counter.totals
+    else:
+        total_in, total_out = counter.counts
+    logger.info(
+        "Tripwire counts: IN=%d | OUT=%d | net occupancy=%d.",
+        total_in,
+        total_out,
+        total_in - total_out,
+    )
 
 
 def _output_video_path(info: object, output_dir: Path) -> Path:

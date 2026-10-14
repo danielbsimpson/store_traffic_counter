@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 import cv2
 import numpy as np
 
-from config import DEFAULT_CONFIDENCE_THRESHOLD
+from config import DEFAULT_CONFIDENCE_THRESHOLD, DEFAULT_YOLO_IMGSZ
 
 logger = logging.getLogger(__name__)
 
@@ -104,8 +104,10 @@ class YOLODetector(Detector):
         weights: str = "yolov8n.pt",
         confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
         device: str = "cpu",
+        imgsz: int = DEFAULT_YOLO_IMGSZ,
     ) -> None:
         super().__init__(confidence_threshold, device)
+        self._imgsz = imgsz
         try:
             from ultralytics import YOLO  # lazy import: heavy dependency
         except ImportError as exc:  # pragma: no cover - env-dependent
@@ -122,13 +124,15 @@ class YOLODetector(Detector):
         logger.info("Loaded YOLO detector (weights=%s, device=%s).", weights, device)
 
     def _infer(self, frame: np.ndarray) -> list[Detection]:
-        results = self._model.predict(
-            frame,
-            classes=[COCO_PERSON_CLASS_ID],
-            conf=self.confidence_threshold,
-            device=self._device,
-            verbose=False,
-        )
+        predict_kwargs = {
+            "classes": [COCO_PERSON_CLASS_ID],
+            "conf": self.confidence_threshold,
+            "device": self._device,
+            "verbose": False,
+        }
+        if self._imgsz:
+            predict_kwargs["imgsz"] = self._imgsz
+        results = self._model.predict(frame, **predict_kwargs)
         detections: list[Detection] = []
         for result in results:
             for box in result.boxes:
@@ -182,6 +186,7 @@ def create_detector(
     confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
     device: str = "cpu",
     weights: str | None = None,
+    imgsz: int = DEFAULT_YOLO_IMGSZ,
 ) -> Detector:
     """Construct a detector by name.
 
@@ -190,6 +195,7 @@ def create_detector(
         confidence_threshold: Minimum confidence to keep a detection.
         device: ``"cpu"`` or ``"gpu"`` (YOLO only).
         weights: Optional YOLO weights path/name; ignored for OpenCV.
+        imgsz: YOLO inference resolution (long edge); ignored for OpenCV.
 
     Raises:
         DetectorError: If ``model`` is not recognized.
@@ -199,6 +205,7 @@ def create_detector(
             weights=weights or "yolov8n.pt",
             confidence_threshold=confidence_threshold,
             device=device,
+            imgsz=imgsz,
         )
     if model == "opencv":
         return OpenCVDetector(confidence_threshold=confidence_threshold, device=device)

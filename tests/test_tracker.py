@@ -84,3 +84,41 @@ def test_tracked_object_fields_populated() -> None:
     assert tracked.centroid == (200, 150)
     assert tracked.confidence == 0.77
     assert tracked.frame_number == 9
+
+
+def test_stationary_track_flagged_static_after_window() -> None:
+    tracker = CentroidTracker(static_window=5, static_max_displacement=10)
+    # A fixed object (mannequin/standee) at the same spot every frame.
+    for frame in range(1, 5):
+        tracked = tracker.update([_det(300, 300)], frame_number=frame)
+        assert tracked[0].is_static is False  # window not yet filled
+    fifth = tracker.update([_det(300, 300)], frame_number=5)
+    assert fifth[0].is_static is True
+
+
+def test_moving_track_not_flagged_static() -> None:
+    tracker = CentroidTracker(
+        max_distance=50, static_window=5, static_max_displacement=10
+    )
+    track_id = tracker.update([_det(100, 100)], frame_number=1)[0].id
+    # Walks steadily well past the displacement threshold each frame.
+    last = None
+    for step, frame in enumerate(range(2, 8), start=1):
+        last = tracker.update([_det(100 + step * 15, 100)], frame_number=frame)[0]
+    assert last is not None
+    assert last.id == track_id
+    assert last.is_static is False
+
+
+def test_static_flag_clears_when_object_moves_again() -> None:
+    tracker = CentroidTracker(
+        max_distance=200, static_window=4, static_max_displacement=10
+    )
+    for frame in range(1, 5):
+        tracker.update([_det(300, 300)], frame_number=frame)
+    assert tracker.update([_det(300, 300)], frame_number=5)[0].is_static is True
+    # Resumes moving; the trailing window fills with motion and clears the flag.
+    for step, frame in enumerate(range(6, 10), start=1):
+        moved = tracker.update([_det(300 + step * 40, 300)], frame_number=frame)[0]
+    assert moved.is_static is False
+

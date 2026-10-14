@@ -29,6 +29,8 @@ from config import (
     VIS_HUD_COLOR,
     VIS_HUD_FONT_SCALE,
     VIS_ID_FONT_SCALE,
+    VIS_STOREFRONT_COLORS,
+    VIS_STOREFRONT_LABEL_FONT_SCALE,
     VIS_TRIPWIRE_COLOR,
     VIS_TRIPWIRE_PROXIMITY_MAX_PX,
     VIS_TRIPWIRE_PROXIMITY_MIN_PX,
@@ -52,8 +54,11 @@ class VideoVisualizer:
     Args:
         show_confidence: Draw each detection's confidence next to its ID.
         show_hud: Draw the heads-up display (frame number, FPS, track counts).
-        tripwire: Optional ``((x1, y1), (x2, y2))`` line to render; ``None`` to
-            omit.
+        tripwire: Optional single ``((x1, y1), (x2, y2))`` line to render in
+            red; ``None`` to omit. Mutually complementary with ``storefronts``.
+        storefronts: Optional mapping of storefront name to its tripwire line.
+            Each line is drawn in a distinct color and labelled with its name,
+            and its counts appear in the HUD when supplied to :meth:`annotate`.
     """
 
     def __init__(
@@ -61,10 +66,20 @@ class VideoVisualizer:
         show_confidence: bool = True,
         show_hud: bool = True,
         tripwire: Line | None = None,
+        storefronts: dict[str, Line] | None = None,
     ) -> None:
         self.show_confidence = show_confidence
         self.show_hud = show_hud
         self.tripwire = tripwire
+        # Unified list of (label, line, color) the overlay draws and measures
+        # proximity against. A lone tripwire is label-less and red; storefront
+        # lines are labelled and cycle through a distinct color palette.
+        self._lines: list[tuple[str | None, Line, tuple[int, int, int]]] = []
+        if tripwire is not None:
+            self._lines.append((None, tripwire, VIS_TRIPWIRE_COLOR))
+        for index, (name, line) in enumerate((storefronts or {}).items()):
+            color = VIS_STOREFRONT_COLORS[index % len(VIS_STOREFRONT_COLORS)]
+            self._lines.append((name, line, color))
         self._highlights: dict[int, tuple[str, int]] = {}  # id -> (direction, frames_remaining)
 
     @staticmethod
@@ -84,6 +99,7 @@ class VideoVisualizer:
         active_tracks: int | None = None,
         total_tracks: int | None = None,
         counts: tuple[int, int] | None = None,
+        store_counts: dict[str, tuple[int, int]] | None = None,
         events: list[CountEvent] | None = None,
     ) -> np.ndarray:
         """Return a copy of ``frame`` with overlays drawn.
@@ -95,7 +111,9 @@ class VideoVisualizer:
             fps: Instantaneous processing FPS for the HUD.
             active_tracks: Number of currently active tracks for the HUD.
             total_tracks: Total unique tracks registered for the HUD.
-            counts: Optional ``(in, out)`` tallies; drawn if provided.
+            counts: Optional aggregate ``(in, out)`` tallies; drawn if provided.
+            store_counts: Optional per-storefront ``{name: (in, out)}`` tallies;
+                each is drawn on its own HUD line when provided.
             events: Tripwire crossings detected this frame; each starts a
                 brief green/red (IN/OUT) highlight on the crossing track.
         """
@@ -105,14 +123,15 @@ class VideoVisualizer:
         if events:
             self._register_crossings(events)
 
-        if self.tripwire is not None:
-            self._draw_tripwire(canvas)
+        self._draw_tripwires(canvas)
 
         for obj in tracked_objects:
             self._draw_track(canvas, obj)
 
         if self.show_hud:
-            self._draw_hud(canvas, frame_number, fps, active_tracks, total_tracks, counts)
+            self._draw_hud(
+                canvas, frame_number, fps, active_tracks, total_tracks, counts, store_counts
+            )
 
         return canvas
 
@@ -141,10 +160,12 @@ class VideoVisualizer:
         if highlight is not None:
             direction, _ = highlight
             return VIS_COLOR_IN if direction == "in" else VIS_COLOR_OUT
-        if self.tripwire is not None:
+        if self._lines:
             fx, fy = obj.foot
-            distance = abs(perpendicular_distance((fx, fy), self.tripwire))
-            if distance <= self._proximity_threshold(fy, frame_height):
+            nearest = min(
+                abs(perpendicular_distance((fx, fy), line)) for _, line, _ in self._lines
+            )
+            if nearest <= self._proximity_threshold(fy, frame_height):
                 return VIS_COLOR_NEAR_TRIPWIRE
         return VIS_COLOR_DEFAULT
 
@@ -155,14 +176,37 @@ class VideoVisualizer:
         span = VIS_TRIPWIRE_PROXIMITY_MAX_PX - VIS_TRIPWIRE_PROXIMITY_MIN_PX
         return VIS_TRIPWIRE_PROXIMITY_MIN_PX + span * scale
 
-    def _draw_tripwire(self, canvas: np.ndarray) -> None:
-        assert self.tripwire is not None
-        start, end = self.tripwire
-        cv2.line(canvas, start, end, VIS_TRIPWIRE_COLOR, VIS_TRIPWIRE_THICKNESS)
-        self._draw_direction_arrows(canvas, start, end)
+    def _draw_tripwires(self, canvas: np.ndarray) -> None:
+        """Draw every configured tripwire line, with arrows and optional label."""
+        for name, line, color in self._lines:
+            start, end = line
+            cv2.line(canvas, start, end, color, VIS_TRIPWIRE_THICKNESS)
+            self._draw_direction_arrows(canvas, start, end, color)
+            if name is not None:
+                self._draw_tripwire_label(canvas, name, line, color)
+
+    def _draw_tripwire_label(
+        self, canvas: np.ndarray, name: str, line: Line, color: tuple[int, int, int]
+    ) -> None:
+        """Draw a storefront name label with a filled background at the line's midpoint."""
+        (x1, y1), (x2, y2) = line
+        mx, my = (x1 + x2) // 2, (y1 + y2) // 2
+        (tw, th), baseline = cv2.getTextSize(
+            name, _FONT, VIS_STOREFRONT_LABEL_FONT_SCALE, VIS_FONT_THICKNESS
+        )
+        top = max(0, my - th - baseline)
+        cv2.rectangle(canvas, (mx, top), (mx + tw, my), color, -1)
+        cv2.putText(
+            canvas, name, (mx, my - baseline), _FONT,
+            VIS_STOREFRONT_LABEL_FONT_SCALE, (0, 0, 0), VIS_FONT_THICKNESS, cv2.LINE_AA,
+        )
 
     def _draw_direction_arrows(
-        self, canvas: np.ndarray, start: tuple[int, int], end: tuple[int, int]
+        self,
+        canvas: np.ndarray,
+        start: tuple[int, int],
+        end: tuple[int, int],
+        color: tuple[int, int, int],
     ) -> None:
         """Draw arrows indicating the IN and OUT directions, following the line's angle."""
         x1, y1 = start
@@ -174,10 +218,10 @@ class VideoVisualizer:
         arrow_len, gap = 25, 8
 
         in_anchor = (x1 + ux * length / 3, y1 + uy * length / 3)
-        self._draw_arrow(canvas, in_anchor, (px, py), arrow_len, gap, "IN")
+        self._draw_arrow(canvas, in_anchor, (px, py), arrow_len, gap, "IN", color)
 
         out_anchor = (x1 + ux * 2 * length / 3, y1 + uy * 2 * length / 3)
-        self._draw_arrow(canvas, out_anchor, (-px, -py), arrow_len, gap, "OUT")
+        self._draw_arrow(canvas, out_anchor, (-px, -py), arrow_len, gap, "OUT", color)
 
     def _draw_arrow(
         self,
@@ -187,16 +231,17 @@ class VideoVisualizer:
         arrow_len: int,
         gap: int,
         label: str,
+        color: tuple[int, int, int],
     ) -> None:
         """Draw a short arrow pointing toward the line from one side, with a label."""
         ax, ay = anchor
         dx, dy = direction
         far = (int(ax - dx * (gap + arrow_len)), int(ay - dy * (gap + arrow_len)))
         near = (int(ax - dx * gap), int(ay - dy * gap))
-        cv2.arrowedLine(canvas, far, near, VIS_TRIPWIRE_COLOR, 2, tipLength=0.4)
+        cv2.arrowedLine(canvas, far, near, color, 2, tipLength=0.4)
         label_pos = (int(ax - dx * (gap + arrow_len / 2)) + 8, int(ay - dy * (gap + arrow_len / 2)))
         cv2.putText(
-            canvas, label, label_pos, _FONT, 0.5, VIS_TRIPWIRE_COLOR, 1, cv2.LINE_AA,
+            canvas, label, label_pos, _FONT, 0.5, color, 1, cv2.LINE_AA,
         )
 
     def _draw_track(self, canvas: np.ndarray, obj: TrackedObject) -> None:
@@ -243,9 +288,16 @@ class VideoVisualizer:
         active_tracks: int | None,
         total_tracks: int | None,
         counts: tuple[int, int] | None,
+        store_counts: dict[str, tuple[int, int]] | None = None,
     ) -> None:
         lines: list[str] = []
-        if counts is not None:
+        if store_counts:
+            for name, (store_in, store_out) in store_counts.items():
+                lines.append(f"{name}  IN {store_in} | OUT {store_out}")
+            total_in = sum(c[0] for c in store_counts.values())
+            total_out = sum(c[1] for c in store_counts.values())
+            lines.append(f"TOTAL  IN {total_in} | OUT {total_out}")
+        elif counts is not None:
             lines.append(f"IN: {counts[0]} | OUT: {counts[1]}")
         stats: list[str] = []
         if active_tracks is not None:

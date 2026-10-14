@@ -22,6 +22,8 @@ This project leverages modern deep learning models (YOLOv8, OpenCV) combined wit
 - **Person Detection** - Interchangeable detectors: YOLOv8 (Ultralytics) or OpenCV's built-in HOG + SVM pedestrian detector
 - **Multi-Object Tracking** - Centroid-based tracking for consistent person IDs across frames, with distance gating and a disappearance timeout
 - **Virtual Tripwire Counting** - Configurable tripwire line (horizontal or angled to match a storefront's perspective) with hysteresis-gated entry/exit counting (`--tripwire-start`/`--tripwire-end`)
+- **Per-Storefront Counting** - Track several store entrances at once, each with its own named, color-coded tripwire and independent in/out tally, via a JSON layout (`--storefronts layout.json`, or an auto-loaded sibling `<video>.storefronts.json`)
+- **Tripwire Calibration Tool** - `src/calibrate.py` overlays the current tripwires and a fraction grid on a real frame so you can see exactly where each line lands; click two points to reposition a line, press `f` to flip its IN/OUT direction, and `s` to save back to the JSON (`--preview-only` renders a reference image for headless checks)
 - **Flexible Input** - Standard video files (MP4, AVI, MOV, MKV) *and* MOT17-style image sequences (`img1/%06d.jpg` + `seqinfo.ini`)
 - **Real-time Visualization** - Live window and/or saved annotated video with ID-colored boxes, confidence labels, a directional tripwire line, and a heads-up display (frame number, FPS, track counts, IN/OUT tallies)
 
@@ -120,7 +122,9 @@ OPTIONS:
   --video PATH              Video file or MOT17 image-sequence directory (required)
   --output DIR              Output directory (default: ./output)
   --model {yolo,opencv}     Detector to use (default: yolo)
-  --confidence FLOAT        Detection confidence threshold 0.0-1.0 (default: 0.5)
+  --confidence FLOAT        Detection confidence threshold 0.0-1.0 (default: 0.25)
+  --imgsz INT               YOLO inference resolution / long edge (default: 1280; larger
+                            recovers small, distant people in 4K scenes, slower)
   --device {cpu,gpu}        Processing device for YOLO (default: cpu)
   --display                 Show the real-time window (press ESC to quit)
   --save-video              Save an annotated MP4 to the output directory

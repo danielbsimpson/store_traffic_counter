@@ -26,6 +26,8 @@ test_results.txt
 
 # Dataset (large; downloaded separately)
 data/MOT17*/
+data/
+*.mp4
 
 # OS / editor
 .DS_Store
