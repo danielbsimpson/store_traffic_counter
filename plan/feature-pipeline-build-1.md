@@ -2,9 +2,9 @@
 goal: Build Complete Store Traffic Counter Pipeline - Input Processing Through Metrics Export
 version: 1.0
 date_created: 2026-10-02
-last_updated: 2026-10-02
+last_updated: 2026-10-20
 owner: Daniel Simpson
-status: 'Planned'
+status: 'Superseded in part (see 2026-10-20 scope revision)'
 tags: [feature, architecture, MVP]
 ---
 
@@ -13,6 +13,9 @@ tags: [feature, architecture, MVP]
 ![Status: Planned](https://img.shields.io/badge/status-Planned-blue)
 
 This implementation plan outlines the complete development of the Store Traffic Counter pipeline, a computer vision system for real-time retail customer counting. The pipeline processes video input through person detection, centroid-based tracking, tripwire crossing detection, and exports real-time visualization overlays and structured metrics logs. This PoC builds the foundation for portfolio demonstration and future scalability.
+
+> **Scope revision (2026-10-20):** This plan is the original full-breadth build and is retained for historical reference. The project has since been re-scoped as a depth-first **portfolio PoC** that counts generic **Persons** crossing a tripwire (not customers). See [GLOSSARY.md](../GLOSSARY.md), [docs/adr/0001-count-persons-not-customers.md](../docs/adr/0001-count-persons-not-customers.md), and [TODO.md](../TODO.md) for the authoritative current scope. Notable deltas: hero demo runs on a sourced doorway clip (MOT17 is the dev harness); metrics are a single summary JSON (per-event CSV deferred, superseding REQ-006); Docker (REQ-012), full coverage/CI, and extended docs are deferred.
+
 
 ## 1. Requirements & Constraints
 
