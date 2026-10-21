@@ -1,6 +1,9 @@
 # TODO
 
-Progress tracker for the Store Traffic Counter pipeline. See [plan/feature-pipeline-build-1.md](plan/feature-pipeline-build-1.md) for full task details.
+Progress tracker for the Store Traffic Counter pipeline and doorway passage evaluation.
+
+- [Pipeline implementation plan](plan/feature-pipeline-build-1.md): existing Phases 1-10 below.
+- [Doorway passage evaluation plan](plan/design-doorway-passage-evaluation-1.md): separate On Hold design workstream below; not included in the pipeline progress totals.
 
 **Legend:** `[ ]` Not started · `[~]` In progress · `[x]` Completed
 
@@ -137,7 +140,49 @@ Progress tracker for the Store Traffic Counter pipeline. See [plan/feature-pipel
 
 ---
 
+## Doorway Passage Evaluation (On Hold)
+
+Source of truth: [design-doorway-passage-evaluation-1.md](plan/design-doorway-passage-evaluation-1.md). Task IDs in this section are scoped to that plan; they are separate from the pipeline's identically numbered tasks.
+
+**Scope:** One manually annotated doorway; observed outside/doorway/inside journeys; directional motion as supporting evidence; unresolved cases reported separately. Initially exclude cross-ID stitching and gap interpolation. Production tripwires, door-mode behavior, detection, tracking, configuration, and CLI remain unchanged.
+
+**Blockers:** Additional suitable footage and approved experiment settings are required. The existing birdseye clip is exploratory only; MOT17 tracking labels are not store-passage ground truth. Documentation and evidence inventory may proceed, but prototype coding, tuning, and acceptance scoring may not.
+
+### Evaluation Phase 1: Evidence Readiness
+
+- [ ] TASK-001 - Record the baseline revision, worktree state, and current counter/tracker behavior.
+- [ ] TASK-002 - Inventory additional authorized footage and document visible zones, candidate passage intervals in both directions, negative scenarios, and development/held-out coverage.
+- [ ] TASK-003 - Record the GATE-001 result after TASK-001 and TASK-002; stop dependent work if footage requirements are unmet.
+
+### Evaluation Phase 2: Approved Experiment Contract
+
+Prerequisite: GATE-001 passed.
+
+- [ ] TASK-004 - Validate explicit approvals for DEC-001 through DEC-006; missing decisions keep GATE-002 blocked rather than receiving guessed defaults.
+- [ ] TASK-005 - After TASK-004 passes, record the frozen approved contract and GATE-002 result; update the ADR only for approved architectural decisions.
+
+### Evaluation Phase 3: Implementation Handoff
+
+Prerequisite: GATE-002 passed.
+
+- [ ] TASK-006 - Create the successor prototype implementation plan with exact interfaces, schemas, commands, dependencies, tests, and acceptance rules; do not implement the counter in this task.
+- [ ] TASK-007 - Validate the successor plan and require explicit isolated-prototype implementation authorization before GATE-003 passes.
+
+| Gate | Status | Required evidence |
+|------|--------|-------------------|
+| GATE-001 | blocked | Additional authorized doorway-visible footage, both passage directions, and non-overlapping development/held-out intervals. |
+| GATE-002 | blocked | GATE-001 passed and DEC-001 through DEC-006 explicitly approved, including benchmark sufficiency, geometry/noise rules, motion settings, matching, acceptance targets, and prototype scope. |
+| GATE-003 | blocked | GATE-002 passed, executable successor plan validated, and isolated implementation explicitly authorized. |
+
+**Future validation:** Compare checked trajectories and the unchanged end-to-end pipeline using held-out, one-to-one event matching. Require no regression in entry precision, entry recall, exit precision, or exit recall, plus meaningful improvement in at least one under approved numerical criteria. A predicted unresolved case on a confirmed passage is a miss. Production replacement remains a separate decision.
+
+**Evaluation progress:** 0/7 tasks complete; all three gates blocked. Creating the plan and this checklist does not complete its evidence or approval tasks.
+
+---
+
 ## Progress Summary
+
+Pipeline plan only; excludes the separate doorway evaluation workstream above.
 
 | Phase | Completed | Total |
 |-------|-----------|-------|

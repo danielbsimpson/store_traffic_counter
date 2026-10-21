@@ -28,6 +28,7 @@ This project leverages modern deep learning models (YOLOv8, OpenCV) combined wit
 - **Real-time Visualization** - Live window and/or saved annotated video with ID-colored boxes, confidence labels, a directional tripwire line, and a heads-up display (frame number, FPS, track counts, IN/OUT tallies)
 
 **In progress / planned:**
+- **Doorway Passage Evaluation (On Hold)** - Evidence-gated design for a single-doorway experiment; production counting remains tripwire-based. See the [implementation plan](plan/design-doorway-passage-evaluation-1.md) and [evaluation scope](#doorway-passage-evaluation).
 - **Metrics Logging** - CSV event logs and JSON summary metrics
 - **Docker Support** - Containerized deployment for reproducibility
 - **Family Detection** - Grouping related individuals to improve conversion metrics
@@ -68,6 +69,28 @@ Video / Image Sequence Input
 - **Counter** (`counter.py`): Tripwire crossing detection and in/out tallying
 - **Visualizer** (`visualizer.py`): Renders overlays for live display and annotated video
 - **Logger** *(planned)*: Structured CSV/JSON data export
+
+## Doorway Passage Evaluation
+
+**Status: On Hold.** The [doorway passage evaluation plan](plan/design-doorway-passage-evaluation-1.md) explores whether observing actual passage through a doorway improves counting accuracy. It does not authorize a counter implementation or replacement of the current tripwire and door-mode behavior.
+
+The proposed experiment covers one manually annotated physical doorway with local outside, doorway, and inside zones:
+
+- Count outside -> doorway -> inside as an entry and the reverse as an exit. Approaches, turnbacks, and pauses alone are not events.
+- Use directional motion as supporting evidence, not a minimum-speed requirement. Initially require one continuous track identity and observed zone visits, without cross-ID stitching or gap interpolation.
+- Report unresolved possible passages separately rather than confirming entries from disappearance or inward movement alone.
+- Compare manually checked trajectories and the unchanged detector/tracker pipeline. Score held-out events one-to-one by doorway and direction, reporting entry/exit precision and recall separately.
+- Require no regression in any of those four end-to-end measures and a meaningful improvement in at least one. Numerical margins and evidence requirements remain unapproved.
+
+**Next steps and gates:**
+
+1. Inventory additional authorized footage showing observable outside/inside passage, both directions, and separate development/held-out intervals (`GATE-001`).
+2. Obtain approval for benchmark coverage, geometry, boundary handling, motion estimation, annotation/matching rules, and acceptance criteria (`GATE-002`).
+3. Create and validate a separate executable prototype plan, then obtain explicit implementation authorization (`GATE-003`).
+
+Documentation and evidence inventory may proceed now; prototype coding, tuning, and acceptance scoring remain blocked. The existing approximately 29-second birdseye clip is exploratory material only. MOT17 labels pedestrian boxes and identities, not store entries/exits, so it is not passage ground truth. A successful future experiment would inform a separate migration decision, not automatically remove tripwires.
+
+See the [domain glossary](GLOSSARY.md), [architectural decision](docs/adr/0001-evaluate-doorway-passage-before-replacing-tripwires.md), and [task checklist](TODO.md#doorway-passage-evaluation-on-hold) for terminology, rationale, and progress.
 
 ## Getting Started
 
@@ -215,7 +238,9 @@ store_traffic_counter/
 │   ├── counter.py        # TripwireCounter for entry/exit counting
 │   └── visualizer.py     # VideoVisualizer overlay rendering
 ├── tests/                # Pytest unit tests
-├── plan/                 # Implementation plan
+├── plan/                 # Pipeline and evidence-gated design plans
+├── docs/adr/             # Architectural decisions
+├── GLOSSARY.md           # Store traffic counting terminology
 ├── data/                 # Input video / image-sequence samples (gitignored)
 ├── output/               # Generated annotated videos and logs (gitignored)
 ├── requirements.txt      # Python dependencies
@@ -225,6 +250,7 @@ store_traffic_counter/
 
 ## Future Roadmap
 
+- [ ] Evaluate doorway passage counting after footage and approval gates pass; see the [On Hold plan](plan/design-doorway-passage-evaluation-1.md)
 - [ ] Family grouping algorithm using spatial proximity and temporal consistency
 - [ ] Heatmap generation from trajectory data
 - [ ] REST API for remote processing requests
