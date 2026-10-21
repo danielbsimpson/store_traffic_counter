@@ -35,7 +35,7 @@ The plan is On Hold because additional suitable footage and approved benchmark/p
 - **CON-003**: Preserve `src/counter.py`, `src/storefront.py`, `src/calibrate.py`, `src/main.py`, `src/detector.py`, `src/tracker.py`, existing configuration, model weights, CLI behavior, and event formats during this plan. Existing named line endpoints are not approved doorway polygons.
 - **CON-004**: No numerical defaults, sample-size targets, matching tolerances, motion windows, zone-boundary rules, or migration behavior may be inferred from this document. Their absence is a blocker, not permission to choose.
 - **SEC-001**: Inspect authorized footage locally. Do not upload frames, video, identities, or trajectories to third-party services. Do not commit footage, extracted frames, or personal identifiers as part of this plan.
-- **PAT-001**: Keep domain definitions in `GLOSSARY.md`, architectural trade-offs in `docs/adr/0001-evaluate-doorway-passage-before-replacing-tripwires.md`, and executable task details in this plan or its approved successor.
+- **PAT-001**: Keep domain definitions in `GLOSSARY.md`, architectural trade-offs in `docs/adr/0002-evaluate-doorway-passage-before-replacing-tripwires.md`, and executable task details in this plan or its approved successor.
 - **GUD-001**: Do not overwrite unrelated untracked files or change the earlier pipeline plan. No implementation is implied by creation or approval of this planning document.
 
 ### Gate protocol
@@ -118,7 +118,7 @@ These are known unresolved decisions, not placeholders for an executor to fill a
 
 - **FILE-001**: `plan/design-doorway-passage-evaluation-1.md`: this executable readiness and approval plan; record evidence, decisions, and gate outcomes here.
 - **FILE-002**: `GLOSSARY.md`: existing domain vocabulary; update only when further terms are explicitly resolved.
-- **FILE-003**: `docs/adr/0001-evaluate-doorway-passage-before-replacing-tripwires.md`: existing evidence-gated architecture decision; preserve its explicit non-authorization of replacement.
+- **FILE-003**: `docs/adr/0002-evaluate-doorway-passage-before-replacing-tripwires.md`: existing evidence-gated architecture decision; preserve its explicit non-authorization of replacement.
 - **FILE-004**: `plan/feature-doorway-passage-prototype-1.md`: create only in TASK-006 after GATE-002 passes; do not create speculative modules or tests before their interfaces are approved.
 - **FILE-005**: `src/counter.py`, `src/storefront.py`, `src/calibrate.py`, `src/main.py`, `src/tracker.py`, `src/detector.py`, `requirements.txt`, `yolov8n.pt`, and `data/birdseye_street.storefronts.json`: read-only baseline references under this plan.
 - **FILE-006**: `tests/test_counter.py`, `tests/test_storefront.py`, `tests/test_tracker.py`, and `tests/conftest.py`: existing behavioral and fixture references for the successor plan; do not alter them under this documentation plan.
@@ -151,7 +151,7 @@ These are known unresolved decisions, not placeholders for an executor to fill a
 ## 8. Related Specifications / Further Reading
 
 - [Domain glossary](../GLOSSARY.md)
-- [Evidence-gated doorway decision](../docs/adr/0001-evaluate-doorway-passage-before-replacing-tripwires.md)
+- [Evidence-gated doorway decision](../docs/adr/0002-evaluate-doorway-passage-before-replacing-tripwires.md)
 - [Existing pipeline plan](./feature-pipeline-build-1.md)
 - [Tripwire counter and events](../src/counter.py)
 - [Storefront line configuration and baseline door mode](../src/storefront.py)

@@ -12,9 +12,11 @@
 
 ## Overview
 
-Store Traffic Counter is a proof-of-concept system for counting customers entering and exiting a retail space using computer vision. It processes video feeds (or image sequences) to detect individuals, tracks them across frames, and counts entries/exits via a virtual tripwire, visualizing the results in real time.
+Store Traffic Counter is a proof-of-concept system that counts **people crossing a virtual tripwire** using computer vision. It processes video feeds (or image sequences) to detect individuals, tracks them across frames, and tallies in/out crossings, visualizing the results in real time.
 
-This project leverages modern deep learning models (YOLOv8, OpenCV) combined with centroid-based tracking. It is developed against the MOT17 pedestrian benchmark and designed with containerization in mind for easy deployment.
+The system deliberately counts any detected **Person**, not "customers": it has no signal to distinguish shoppers from passersby or staff, so it never claims more than the vision supports. Distinguishing customers is a documented future refinement (see [GLOSSARY.md](GLOSSARY.md) and [docs/adr/0001-count-persons-not-customers.md](docs/adr/0001-count-persons-not-customers.md)).
+
+This project leverages modern deep learning models (YOLOv8, OpenCV) combined with centroid-based tracking. It is developed and tested against the MOT17 pedestrian benchmark, with a sourced doorway clip used for the headline demo.
 
 ## Features
 
@@ -29,10 +31,13 @@ This project leverages modern deep learning models (YOLOv8, OpenCV) combined wit
 
 **In progress / planned:**
 - **Doorway Passage Evaluation (On Hold)** - Evidence-gated design for a single-doorway experiment; production counting remains tripwire-based. See the [implementation plan](plan/design-doorway-passage-evaluation-1.md) and [evaluation scope](#doorway-passage-evaluation).
-- **Metrics Logging** - CSV event logs and JSON summary metrics
+- **Metrics Summary** - A per-run JSON summary of in/out counts and net occupancy
+- **Demo Export** - Short annotated MP4 clip + looping GIF for the README
+
+**Future (out of scope for this PoC):**
 - **Docker Support** - Containerized deployment for reproducibility
-- **Family Detection** - Grouping related individuals to improve conversion metrics
-- **Heatmaps** - Spatial analysis of customer movement patterns
+- **Customer Detection** - Distinguishing shoppers from passersby/staff (see the ADR above)
+- **Heatmaps** - Spatial analysis of movement patterns
 
 ## Tech Stack
 
@@ -90,7 +95,7 @@ The proposed experiment covers one manually annotated physical doorway with loca
 
 Documentation and evidence inventory may proceed now; prototype coding, tuning, and acceptance scoring remain blocked. The existing approximately 29-second birdseye clip is exploratory material only. MOT17 labels pedestrian boxes and identities, not store entries/exits, so it is not passage ground truth. A successful future experiment would inform a separate migration decision, not automatically remove tripwires.
 
-See the [domain glossary](GLOSSARY.md), [architectural decision](docs/adr/0001-evaluate-doorway-passage-before-replacing-tripwires.md), and [task checklist](TODO.md#doorway-passage-evaluation-on-hold) for terminology, rationale, and progress.
+See the [domain glossary](GLOSSARY.md), [architectural decision](docs/adr/0002-evaluate-doorway-passage-before-replacing-tripwires.md), and [task checklist](TODO.md#doorway-passage-evaluation-on-hold) for terminology, rationale, and progress.
 
 ## Getting Started
 
@@ -181,11 +186,11 @@ python src/main.py --video footage.mp4 --model yolo --device gpu
 python src/main.py --video data/MOT17-09-DPM --save-video --tripwire-start "0.0,0.72" --tripwire-end "1.0,0.42"
 ```
 
-## Demo Dataset
+## Demo & Development Data
 
-The pipeline is developed and demoed against the [MOT17](https://motchallenge.net/data/MOT17) pedestrian tracking benchmark. Sequences are provided as numbered JPEG frames plus a `seqinfo.ini`; the loader reads them directly (no conversion needed).
+The headline demo runs on a sourced doorway clip (people crossing an entrance) so the in/out counts match the project's premise. For development and testing, the pipeline uses the [MOT17](https://motchallenge.net/data/MOT17) pedestrian tracking benchmark as a free, ground-truthed harness. Sequences are provided as numbered JPEG frames plus a `seqinfo.ini`; the loader reads them directly (no conversion needed).
 
-- **MOT17-09** - static camera, moderate density (primary demo)
+- **MOT17-09** - static camera, moderate density (primary dev sequence)
 - **MOT17-04** - elevated viewpoint
 - **MOT17-11** - busy shopping mall
 
@@ -206,14 +211,18 @@ Saved videos are written to `output/annotated_<name>.mp4`.
 
 ### Data Export (planned)
 
-CSV event logs and a JSON metrics summary are planned alongside tripwire counting:
-
-```csv
-timestamp,event_type,person_id,direction,cumulative_in,cumulative_out
-```
+A single JSON summary per run is planned alongside tripwire counting (a per-event CSV log is deferred):
 
 ```json
-{ "total_in": 0, "total_out": 0, "net_occupancy": 0 }
+{
+  "video": "...",
+  "frames_processed": 0,
+  "duration_sec": 0,
+  "storefronts": [ { "name": "...", "in": 0, "out": 0, "net_occupancy": 0 } ],
+  "total_in": 0,
+  "total_out": 0,
+  "net_occupancy": 0
+}
 ```
 
 ## Performance
@@ -289,11 +298,11 @@ store_traffic_counter/
 
 ## Disclaimer
 
-This is a proof-of-concept project for portfolio demonstration. The system has been tested on retail footage but may require calibration for specific store layouts, camera angles, and lighting conditions. Accuracy may vary depending on:
+This is a proof-of-concept project for portfolio demonstration. The system has been developed against MOT17 pedestrian footage and a sourced doorway clip, and may require calibration for specific layouts, camera angles, and lighting conditions. Accuracy may vary depending on:
 - Video quality and resolution
 - Lighting conditions
 - Store layout and camera placement
-- Customer density and clothing colors
+- Crowd density and clothing colors
 
 ## License
 
